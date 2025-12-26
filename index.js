@@ -7,6 +7,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const expressLayouts = require('express-ejs-layouts');
 const path = require('path');
+const logger = require('./utils/logger');
 
 const app = express();
 
@@ -31,6 +32,30 @@ app.use('/pdfs', express.static(path.join(__dirname, 'public/pdfs')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Security middleware
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+
+// Apply basic security headers
+app.use(helmet());
+// Enable CORS only when explicitly enabled via env
+if (process.env.ENABLE_CORS === 'true') {
+    app.use(cors());
+}
+
+// Basic rate limiter
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use(limiter);
+
+// Request logging middleware
+app.use(logger.requestLogger);
+
 // Sessions (for admin auth). Use SESSION_SECRET in .env
 const session = require('express-session');
 app.use(session({
@@ -39,6 +64,44 @@ app.use(session({
     saveUninitialized: false,
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
+
+// Health endpoint for load-balancers / probes
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Optional Prometheus metrics endpoint (enable with ENABLE_METRICS=true)
+if (process.env.ENABLE_METRICS === 'true') {
+    try {
+        const client = require('prom-client');
+        // collect node defaults
+        client.collectDefaultMetrics();
+
+        // HTTP request duration histogram
+        const httpRequestDuration = new client.Histogram({
+            name: 'http_request_duration_seconds',
+            help: 'Duration of HTTP requests in seconds',
+            labelNames: ['method', 'route', 'status'],
+            buckets: [0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5]
+        });
+
+        // observe all requests
+        app.use((req, res, next) => {
+            const end = httpRequestDuration.startTimer();
+            res.on('finish', () => {
+                httpRequestDuration.labels(req.method, req.route ? req.route.path : req.path, String(res.statusCode)).observe(end());
+            });
+            next();
+        });
+
+        app.get('/metrics', async (req, res) => {
+            res.set('Content-Type', client.register.contentType);
+            res.end(await client.register.metrics());
+        });
+    } catch (err) {
+        logger.warn('prom-client not installed; /metrics not available');
+    }
+}
 
 // populate user middleware
 const { populateUser } = require('./middleware/auth');
@@ -61,20 +124,29 @@ const PORT = process.env.PORT || 5000;
 // Connect to MongoDB if MONGO_URI is provided
 if (process.env.MONGO_URI) {
     mongoose.connect(process.env.MONGO_URI).then(() => {
-        console.log('✅ Connected to MongoDB Atlas');
+        logger.info('Connected to MongoDB Atlas');
         app.listen(PORT, () => {
-            console.log(`🚀 Server running on port ${PORT}`);
+            logger.info(`Server running on port ${PORT}`);
         });
     }).catch(err => {
-        console.error('❌ MongoDB connection error:', err);
-        console.log(`⚠️ Starting server without DB on port ${PORT}`);
+        logger.error('MongoDB connection error: %o', err);
+        logger.warn(`Starting server without DB on port ${PORT}`);
         app.listen(PORT, () => {
-            console.log(`🚀 Server running on port ${PORT}`);
+            logger.info(`Server running on port ${PORT}`);
         });
     });
 } else {
-    console.log('⚠️ No MONGO_URI provided - starting without database');
+    logger.warn('No MONGO_URI provided - starting without database');
     app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
+        logger.info(`Server running on port ${PORT}`);
     });
 }
+
+// Handle unexpected errors
+process.on('uncaughtException', (err) => {
+    logger.error('Uncaught Exception: %o', err);
+    process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled Rejection: %o', reason);
+});

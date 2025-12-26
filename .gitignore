@@ -51,6 +51,7 @@ pids/
 coverage/
 .nyc_output/
 test-results/
+jest-coverage/
 
 # Dependency directories
 jspm_packages/
