@@ -156,6 +156,15 @@
 
                     
 
+                    <div id="locationStatus" style="font-size:12px;color:#666;margin-top:6px;display:none;"></div>
+
+                    <div class="form-row two-col" id="divisionRow" style="display:none;">
+                        <label>परमंडल / Division *</label>
+                        <select name="division" id="divisionSelect">
+                            <option value="">-- चुनें --</option>
+                        </select>
+                    </div>
+
                     <div class="form-row two-col" id="districtRow" style="display:none;">
                         <label>ज़िला / District *</label>
                         <select name="district" id="districtSelect">
@@ -276,11 +285,15 @@
 
         // Bihar districts/blocks dynamic population
         const stateSelect = document.getElementById('stateSelect');
+        const divisionRow = document.getElementById('divisionRow');
+        const divisionSelect = document.getElementById('divisionSelect');
         const districtRow = document.getElementById('districtRow');
         const blockRow = document.getElementById('blockRow');
         const districtSelect = document.getElementById('districtSelect');
         const blockSelect = document.getElementById('blockSelect');
+        const locationStatus = document.getElementById('locationStatus');
         let biharData = null;
+        let divisionsData = null;
 
         function resetDistricts() {
             districtSelect.innerHTML = '<option value="">-- चुनें --</option>';
@@ -302,31 +315,81 @@
             }
         }
 
+        async function loadDivisionsData(){
+            if (divisionsData) return divisionsData;
+            try {
+                const res = await fetch('/locations/bihar_divisions.json');
+                if (!res.ok) throw new Error('Failed to load divisions');
+                const json = await res.json();
+                divisionsData = json;
+                return divisionsData;
+            } catch (err) {
+                console.error('Could not load Bihar divisions data', err);
+                return null;
+            }
+        }
+
+        function updateLocationStatus(divs, blocks){
+            if (!locationStatus) return;
+            const divCount = divs ? Object.keys(divs).length : 0;
+            const distCount = blocks ? Object.keys(blocks).length : 0;
+            const blocksTotal = blocks ? Object.values(blocks).flat().length : 0;
+            locationStatus.textContent = `Parmandals: ${divCount} • Districts: ${distCount} • Blocks total: ${blocksTotal}`;
+            locationStatus.style.display = '';
+        }
+
         async function onStateChange(){
             const st = stateSelect.value;
             if (st === 'Bihar'){
-                const data = await loadBiharData();
-                if (!data) return;
+                const bdata = await loadBiharData();
+                const ddata = await loadDivisionsData();
+                if (!bdata || !ddata) return;
                 resetDistricts();
-                Object.keys(data).forEach(d => {
-                    const opt = document.createElement('option'); opt.value = d; opt.textContent = d;
-                    districtSelect.appendChild(opt);
+
+                // populate division select
+                divisionSelect.innerHTML = '<option value="">-- चुनें --</option>';
+                Object.keys(ddata).forEach(div => {
+                    const opt = document.createElement('option'); opt.value = div; opt.textContent = div;
+                    divisionSelect.appendChild(opt);
                 });
-                districtRow.style.display = '';
-                // hide block until a district is chosen and blocks are available
+
+                divisionRow.style.display = '';
+                districtRow.style.display = 'none';
                 blockRow.style.display = 'none';
+
+                updateLocationStatus(ddata, bdata);
             } else {
+                divisionRow.style.display = 'none';
                 districtRow.style.display = 'none';
                 blockRow.style.display = 'none';
                 resetDistricts();
             }
         }
 
+        divisionSelect.addEventListener('change', function(){
+            const chosenDiv = this.value;
+            districtSelect.innerHTML = '<option value="">-- चुनें --</option>';
+            if (!chosenDiv || !divisionsData || !divisionsData[chosenDiv]) {
+                districtRow.style.display = 'none';
+                blockRow.style.display = 'none';
+                return;
+            }
+            divisionsData[chosenDiv].forEach(d => {
+                const opt = document.createElement('option'); opt.value = d; opt.textContent = d;
+                if (typeof district !== 'undefined' && district === d) opt.selected = true;
+                districtSelect.appendChild(opt);
+            });
+            districtRow.style.display = '';
+            blockRow.style.display = 'none';
+        });
+
         districtSelect.addEventListener('change', function(){
             const chosen = this.value;
             blockSelect.innerHTML = '<option value="">-- चुनें --</option>';
-            if (!chosen || !biharData || !biharData[chosen]) {
-                blockRow.style.display = 'none';
+            if (!chosen || !biharData || !biharData[chosen] || biharData[chosen].length === 0) {
+                // Show message if no blocks available so user sees feedback
+                blockSelect.innerHTML += '<option value="" disabled>No blocks available / उपलब्ध नहीं</option>';
+                blockRow.style.display = '';
                 return;
             }
             biharData[chosen].forEach(b => {
@@ -334,8 +397,8 @@
                 if (typeof block !== 'undefined' && block === b) opt.selected = true;
                 blockSelect.appendChild(opt);
             });
-            // show block row only if we have block options
-            blockRow.style.display = (biharData[chosen] && biharData[chosen].length > 0) ? '' : 'none';
+            // show block row
+            blockRow.style.display = '';
         });
 
         // Show house/street/panchayat/village/pincode rows after block selection
@@ -353,7 +416,27 @@
             if (stateSelect) {
                 stateSelect.addEventListener('change', onStateChange);
                 // trigger once to populate if server rendered Bihar selected
-                if (stateSelect.value === 'Bihar') onStateChange();
+                if (stateSelect.value === 'Bihar') {
+                    onStateChange().then(() => {
+                        // If server rendered division/district/block values exist, preselect them
+                        const serverDivision = (typeof division !== 'undefined') ? "<%= (typeof division !== 'undefined' ? division : '') %>" : undefined;
+                        const serverDistrict = (typeof district !== 'undefined') ? "<%= (typeof district !== 'undefined' ? district : '') %>" : undefined;
+                        const serverBlock = (typeof block !== 'undefined') ? "<%= (typeof block !== 'undefined' ? block : '') %>" : undefined;
+
+                        if (serverDivision) {
+                            divisionSelect.value = serverDivision;
+                            divisionSelect.dispatchEvent(new Event('change'));
+                        }
+                        if (serverDistrict) {
+                            districtSelect.value = serverDistrict;
+                            districtSelect.dispatchEvent(new Event('change'));
+                        }
+                        if (serverBlock) {
+                            blockSelect.value = serverBlock;
+                            blockSelect.dispatchEvent(new Event('change'));
+                        }
+                    });
+                }
             }
         })();
 
