@@ -157,15 +157,15 @@
                     
 
                     <div class="form-row two-col">
-                        <label>परमंडल / Division *</label>
-                        <select name="division" id="divisionSelect" required>
+                        <label>परमंडल / Parmandal *</label>
+                        <select name="parmandal" id="parmandalSelect" required>
                             <option value="">-- चुनें / Select --</option>
                         </select>
                     </div>
 
                     <div class="form-row two-col">
-                        <label>ज़िला / District *</label>
-                        <select name="district" id="districtSelect" required>
+                        <label>ज़िला / Jila *</label>
+                        <select name="jila" id="jilaSelect" required>
                             <option value="">-- चुनें / Select --</option>
                         </select>
                     </div>
@@ -176,6 +176,17 @@
                             <option value="">-- चुनें / Select --</option>
                         </select>
                     </div>
+
+                    <script>
+                        // Server-provided defaults for preselection (if any)
+                        window.__NHRA_LOCATION = {
+                            parmandal: <%- JSON.stringify(typeof division !== 'undefined' ? division : '') %>,
+                            jila: <%- JSON.stringify(typeof district !== 'undefined' ? district : '') %>,
+                            block: <%- JSON.stringify(typeof block !== 'undefined' ? block : '') %>
+                        };
+                    </script>
+
+                    <div id="locationStatus" style="font-size:0.95em;color:#666;margin-top:6px;"></div>
 
                     <!-- Address fields always visible -->
                     <div class="form-row two-col">
@@ -307,6 +318,30 @@
                 blocksData = await blocksRes.json();
 
                 console.log('✅ Location data loaded successfully');
+
+                // Preselect values if provided by server
+                try {
+                    if (window.__NHRA_LOCATION) {
+                        const p = window.__NHRA_LOCATION.parmandal || '';
+                        const j = window.__NHRA_LOCATION.jila || '';
+                        const b = window.__NHRA_LOCATION.block || '';
+                        if (p && stateSelect && stateSelect.value === 'Bihar') {
+                            populateSelect(parmandalSelect, Object.keys(divisionsData));
+                            parmandalSelect.value = p;
+                            parmandalSelect.dispatchEvent(new Event('change'));
+                        }
+                        if (j && stateSelect && stateSelect.value === 'Bihar') {
+                            jilaSelect.value = j;
+                            jilaSelect.dispatchEvent(new Event('change'));
+                        }
+                        if (b && stateSelect && stateSelect.value === 'Bihar') {
+                            blockSelect.value = b;
+                        }
+                    }
+                } catch (preErr) {
+                    console.warn('⚠️ Preselect failed:', preErr);
+                }
+
             } catch (err) {
                 console.error('❌ Error loading location data:', err);
             }
@@ -325,7 +360,7 @@
 
         // Clear dependent dropdowns
         function clearDependentDropdowns(startFrom) {
-            const dropdowns = ['divisionSelect', 'districtSelect', 'blockSelect'];
+            const dropdowns = ['parmandalSelect', 'jilaSelect', 'blockSelect'];
             const startIndex = dropdowns.indexOf(startFrom);
 
             for (let i = startIndex + 1; i < dropdowns.length; i++) {
@@ -338,51 +373,58 @@
 
         // State change handler
         const stateSelect = document.getElementById('stateSelect');
-        const divisionSelect = document.getElementById('divisionSelect');
-        const districtSelect = document.getElementById('districtSelect');
+        const parmandalSelect = document.getElementById('parmandalSelect');
+        const jilaSelect = document.getElementById('jilaSelect');
         const blockSelect = document.getElementById('blockSelect');
 
         stateSelect.addEventListener('change', function() {
             const selectedState = this.value;
 
             if (selectedState === 'Bihar' && divisionsData) {
-                // Populate divisions
-                const divisionOptions = Object.keys(divisionsData);
-                populateSelect(divisionSelect, divisionOptions);
+                // Populate parmandals
+                const parmandalOptions = Object.keys(divisionsData);
+                populateSelect(parmandalSelect, parmandalOptions);
             } else {
                 // Clear all dependent dropdowns
                 clearDependentDropdowns('stateSelect');
             }
         });
 
-        // Division change handler
-        divisionSelect.addEventListener('change', function() {
-            const selectedDivision = this.value;
+        // Parmandal change handler
+        parmandalSelect.addEventListener('change', function() {
+            const selectedParmandal = this.value;
 
-            if (selectedDivision && divisionsData && divisionsData[selectedDivision]) {
-                // Populate districts for this division
-                const districtOptions = divisionsData[selectedDivision];
-                populateSelect(districtSelect, districtOptions);
+            if (selectedParmandal && divisionsData && divisionsData[selectedParmandal]) {
+                // Populate jilas for this parmandal
+                const jilaOptions = divisionsData[selectedParmandal];
+                populateSelect(jilaSelect, jilaOptions);
             } else {
-                clearDependentDropdowns('divisionSelect');
+                clearDependentDropdowns('parmandalSelect');
             }
         });
 
-        // District change handler
-        districtSelect.addEventListener('change', function() {
-            const selectedDistrict = this.value;
+        // Jila change handler
+        jilaSelect.addEventListener('change', function() {
+            const selectedJila = this.value;
 
-            if (selectedDistrict && blocksData && blocksData.Bihar && blocksData.Bihar[selectedDistrict]) {
-                // Populate blocks for this district
-                const blockOptions = blocksData.Bihar[selectedDistrict];
+            if (selectedJila && blocksData && blocksData[selectedJila] && blocksData[selectedJila].length > 0) {
+                // Populate blocks for this jila (use blocksData to avoid using the wrong source)
+                const blockOptions = blocksData[selectedJila];
                 populateSelect(blockSelect, blockOptions);
+                locationStatus.textContent = `Found ${blockOptions.length} blocks for ${selectedJila}`;
             } else {
-                clearDependentDropdowns('districtSelect');
+                clearDependentDropdowns('jilaSelect');
+                locationStatus.textContent = 'No blocks available for the selected district.';
             }
         });
 
         // Initialize location data on page load
-        loadLocationData();
+        loadLocationData().then(() => {
+            if (stateSelect.value === 'Bihar' && divisionsData) {
+                const parmandalOptions = Object.keys(divisionsData);
+                populateSelect(parmandalSelect, parmandalOptions);
+            }
+        }).catch(err => console.warn('⚠️ Loading location data failed:', err));
     })();
 </script>
 
