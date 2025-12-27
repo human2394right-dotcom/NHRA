@@ -313,7 +313,8 @@
                     districtSelect.appendChild(opt);
                 });
                 districtRow.style.display = '';
-                blockRow.style.display = '';
+                // hide block until a district is chosen and blocks are available
+                blockRow.style.display = 'none';
             } else {
                 districtRow.style.display = 'none';
                 blockRow.style.display = 'none';
@@ -324,12 +325,17 @@
         districtSelect.addEventListener('change', function(){
             const chosen = this.value;
             blockSelect.innerHTML = '<option value="">-- चुनें --</option>';
-            if (!chosen || !biharData || !biharData[chosen]) return;
+            if (!chosen || !biharData || !biharData[chosen]) {
+                blockRow.style.display = 'none';
+                return;
+            }
             biharData[chosen].forEach(b => {
                 const opt = document.createElement('option'); opt.value = b; opt.textContent = b;
                 if (typeof block !== 'undefined' && block === b) opt.selected = true;
                 blockSelect.appendChild(opt);
             });
+            // show block row only if we have block options
+            blockRow.style.display = (biharData[chosen] && biharData[chosen].length > 0) ? '' : 'none';
         });
 
         // Show house/street/panchayat/village/pincode rows after block selection

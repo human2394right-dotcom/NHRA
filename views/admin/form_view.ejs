@@ -183,6 +183,12 @@
             </select>
             <button class="btn" style="width:100%;padding:8px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">Assign/Update Role</button>
           </form>
+          <div style="margin-top:10px;">
+            <button id="resend-joining-btn" class="btn" style="width:100%;padding:10px;background:#17a2b8;color:white;border:none;border-radius:4px;cursor:pointer;">
+              📨 Resend Joining Letter
+            </button>
+            <small style="display:block;color:#666;margin-top:6px;">Sends the joining letter PDF to <strong><%= form.email || 'N/A' %></strong></small>
+          </div>
         </div>
         <% } %>
 
@@ -212,4 +218,33 @@
       </div>
     </div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const btn = document.getElementById('resend-joining-btn');
+      if (!btn) return;
+      btn.addEventListener('click', async function () {
+        if (!confirm('Are you sure you want to resend the joining letter to <%= form.email %>?')) return;
+        btn.disabled = true; btn.innerText = 'Sending...';
+        try {
+          const res = await fetch('/admin/forms/<%= form._id %>/resend-joining-letter', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+          });
+          const data = await res.json();
+          if (res.ok && data.ok) {
+            alert(data.msg || 'Joining letter resent successfully');
+            window.location.reload();
+          } else {
+            alert('Failed: ' + (data.msg || res.statusText));
+          }
+        } catch (e) {
+          alert('Error sending email: ' + e.message);
+        } finally {
+          btn.disabled = false; btn.innerText = '📨 Resend Joining Letter';
+        }
+      });
+    });
+  </script>
 </section>

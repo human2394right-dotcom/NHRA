@@ -517,6 +517,95 @@ router.post('/forms/:id/accept', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Resend Joining Letter - regenerate PDF if missing and resend email
+router.post('/forms/:id/resend-joining-letter', ensureAuthenticated, async (req, res) => {
+  console.log('✉️ RESEND JOINING LETTER TRIGGERED');
+  try {
+    const form = await Membership.findById(req.params.id);
+    if (!form) {
+      console.log('❌ Form not found for resend');
+      return res.status(404).json({ ok: false, msg: 'Form not found' });
+    }
+
+    // authorization
+    const allowed = canPerformActions(req.user, form);
+    if (!allowed) {
+      console.log('❌ Authorization failed for resend');
+      return res.status(403).json({ ok: false, msg: 'Forbidden' });
+    }
+
+    if (!form.membershipId) {
+      console.log('⚠️ Membership ID missing for form:', form._id);
+      return res.status(400).json({ ok: false, msg: 'Membership ID missing. Accept the form first.' });
+    }
+
+    // Ensure PDF exists, else regenerate
+    let pdfPath = null;
+    const pdfRel = form.pdfUrl || '';
+    if (pdfRel) {
+      const candidate = path.join(__dirname, '..', 'public', pdfRel.replace(/^\/+/, ''));
+      if (fs.existsSync(candidate)) {
+        pdfPath = candidate;
+        console.log('✅ Existing PDF found for resend:', pdfPath);
+      } else {
+        console.log('⚠️ PDF URL exists but file missing, will regenerate');
+      }
+    }
+
+    // regenerate if missing
+    if (!pdfPath) {
+      console.log('🔧 Regenerating PDF for:', form.fullName);
+      const membershipId = form.membershipId;
+      const qrCodeDataURL = await QRCode.toDataURL(`${req.protocol}://${req.get('host')}/verify/${membershipId}`);
+      const pdfBuffer = await generateMembershipPDF(form, qrCodeDataURL);
+      const pdfDir = path.join(__dirname, '../public/pdfs');
+      if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+      const pdfFilename = membershipId.replace(/\//g, '_') + '.pdf';
+      pdfPath = path.join(pdfDir, pdfFilename);
+      fs.writeFileSync(pdfPath, pdfBuffer);
+      form.pdfUrl = `/pdfs/${pdfFilename}`;
+      await form.save();
+      console.log('✅ Regenerated and saved PDF:', form.pdfUrl);
+    }
+
+    // Send email
+    const { sendMail } = require('../utils/mailer');
+    if (!form.email) {
+      console.log('⚠️ No email address to resend to');
+      return res.status(400).json({ ok: false, msg: 'No email address for this member' });
+    }
+
+    const membershipId = form.membershipId;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: form.email,
+      subject: '📨 NHRA Joining Letter - Resent',
+      text: `नमस्ते ${form.fullName},\n\nयह आपका NHRA Joining Letter पुनः भेजा जा रहा है।\n\nMembership ID: ${membershipId}\n\nडाउनलोड करें: ${req.protocol}://${req.get('host')}${form.pdfUrl}\n\nधन्यवाद,\nNHRA Bihar Team`
+    };
+
+    if (pdfPath) {
+      mailOptions.attachments = [{ filename: `NHRA_Membership_${membershipId}.pdf`, path: pdfPath }];
+    }
+
+    try {
+      await sendMail(mailOptions);
+      form.history = form.history || [];
+      form.history.push({ by: req.user._id, role: req.user.role, action: 'resend_joining_letter', note: `Resent to ${form.email}`, timestamp: new Date() });
+      await form.save();
+      console.log('✅ Resend email sent to:', form.email);
+      return res.json({ ok: true, msg: 'Joining letter resent successfully' });
+    } catch (mailErr) {
+      console.error('❌ Error sending resend email:', mailErr);
+      return res.status(500).json({ ok: false, msg: 'Failed to send email', error: mailErr.message });
+    }
+
+  } catch (err) {
+    console.error('❌ Resend endpoint error:', err);
+    return res.status(500).json({ ok: false, msg: 'Server error', error: err.message });
+  }
+});
+
 // Reject a form
 router.post('/forms/:id/reject', ensureAuthenticated, async (req, res) => {
   try {
@@ -576,7 +665,88 @@ router.post('/forms/:id/assign-role', ensureAuthenticated, async (req, res) => {
       note: `Assigned role: ${jobRole} in ${teamType} team`,
       timestamp: new Date()
     });
+
+    // Ensure membershipId exists (generate if missing)
+    if (!form.membershipId) {
+      try {
+        const membershipId = await generateMembershipId(form.district || form.city || 'UNKNOWN');
+        form.membershipId = membershipId;
+        form.history.push({ by: req.user._id, role: req.user.role, action: 'membership_id_generated', note: `Generated ID ${membershipId}`, timestamp: new Date() });
+        console.log('✅ Membership ID generated during role assignment:', membershipId);
+      } catch (idErr) {
+        console.error('❌ Error generating membership ID during role assign:', idErr.message);
+      }
+    }
+
     await form.save();
+
+    // Now generate QR, PDF and send joining letter email immediately
+    (async () => {
+      try {
+        console.log('✉️ Preparing to send joining letter after role assignment for:', form.fullName);
+        const membershipId = form.membershipId;
+        const qrCodeDataURL = await QRCode.toDataURL(`${req.protocol}://${req.get('host')}/verify/${membershipId}`);
+
+        // Generate PDF
+        let pdfBuffer;
+        try {
+          pdfBuffer = await generateMembershipPDF(form, qrCodeDataURL);
+          const pdfDir = path.join(__dirname, '../public/pdfs');
+          if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+          const pdfFilename = membershipId.replace(/\//g, '_') + '.pdf';
+          const pdfPath = path.join(pdfDir, pdfFilename);
+          fs.writeFileSync(pdfPath, pdfBuffer);
+          form.pdfUrl = `/pdfs/${pdfFilename}`;
+          form.history.push({ by: req.user._id, role: req.user.role, action: 'pdf_generated', note: `PDF generated at ${form.pdfUrl}`, timestamp: new Date() });
+          await form.save();
+          console.log('✅ PDF generated and saved during role assignment:', pdfPath);
+        } catch (pdfErr) {
+          console.error('❌ PDF generation failed during role assignment:', pdfErr.message);
+          form.history.push({ by: req.user._id, role: req.user.role, action: 'pdf_error', note: pdfErr.message, timestamp: new Date() });
+          await form.save();
+        }
+
+        // Send email with PDF if email exists
+        if (form.email) {
+          try {
+            const { sendMail } = require('../utils/mailer');
+            const mailOptions = {
+              from: process.env.EMAIL_USER,
+              to: form.email,
+              subject: '🎉 NHRA Joining Letter - Your role has been assigned',
+              text: `नमस्ते ${form.fullName},\n\nआपको निम्नलिखित पद पर नियुक्त किया गया है: ${jobRole} (टिम: ${teamType}).\n\nMembership ID: ${form.membershipId}\n\nडाउनलोड करें: ${req.protocol}://${req.get('host')}${form.pdfUrl || ''}\n\nQR कोड स्कैन करके अपनी सदस्यता को किसी भी समय वेरीफाई कर सकते हैं।\n\nधन्यवाद,\nNHRA Bihar Team`
+            };
+            if (form.pdfUrl) {
+              const pdfPath = path.join(__dirname, '..', 'public', form.pdfUrl.replace(/^\/+/, ''));
+              if (fs.existsSync(pdfPath)) {
+                mailOptions.attachments = [{ filename: `NHRA_Membership_${form.membershipId}.pdf`, path: pdfPath }];
+              }
+            }
+
+            const sendResult = await sendMail(mailOptions);
+            if (sendResult === null) {
+              console.log('⚠️ Mailer skipped sending (no credentials)');
+              form.history.push({ by: req.user._id, role: req.user.role, action: 'email_skipped', note: `Attempted to send to ${form.email} but mailer not configured`, timestamp: new Date() });
+            } else {
+              console.log('✅ Joining letter email sent to:', form.email);
+              form.history.push({ by: req.user._id, role: req.user.role, action: 'joining_letter_sent', note: `Sent to ${form.email}`, timestamp: new Date() });
+            }
+            await form.save();
+          } catch (mailErr) {
+            console.error('❌ Error sending joining letter after role assignment:', mailErr.message);
+            form.history.push({ by: req.user._id, role: req.user.role, action: 'email_error', note: mailErr.message, timestamp: new Date() });
+            await form.save();
+          }
+        } else {
+          console.log('⚠️ No email found on form, cannot send joining letter');
+          form.history.push({ by: req.user._id, role: req.user.role, action: 'no_email', note: 'No email to send joining letter to', timestamp: new Date() });
+          await form.save();
+        }
+
+      } catch (err) {
+        console.error('❌ Unexpected error in post-role-assignment email flow:', err.message);
+      }
+    })();
 
     res.redirect('/admin/forms/' + req.params.id);
   } catch (err) {

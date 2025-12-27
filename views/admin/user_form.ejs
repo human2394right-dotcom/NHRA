@@ -89,7 +89,9 @@ let blocksData = {};
 fetch('/locations/bihar_blocks.json')
   .then(response => response.json())
   .then(data => {
-    blocksData = data;
+    // normalize shape: file may be { "Bihar": { ... } } or directly { district: [blocks] }
+    blocksData = (data && data.Bihar) ? data.Bihar : data;
+    console.log('🔍 Blocks data loaded, districts count:', Object.keys(blocksData).length);
   })
   .catch(err => console.error('Error loading blocks:', err));
 
