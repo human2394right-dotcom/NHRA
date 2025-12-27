@@ -182,6 +182,33 @@ router.get('/api/locations/blocks', (req, res) => {
     }
 });
 
+// Direct JSON file serving for frontend
+router.get('/locations/bihar_divisions.json', (req, res) => {
+    try {
+        const p = require('path');
+        const fp = p.join(__dirname, '..', 'public', 'locations', 'bihar_divisions.json');
+        const data = JSON.parse(require('fs').readFileSync(fp, 'utf8'));
+        console.log('📍 /locations/bihar_divisions.json requested');
+        return res.json(data);
+    } catch (err) {
+        console.error('❌ Error reading divisions file:', err.message);
+        return res.status(500).json({ error: 'Failed to load divisions' });
+    }
+});
+
+router.get('/locations/bihar_blocks.json', (req, res) => {
+    try {
+        const p = require('path');
+        const fp = p.join(__dirname, '..', 'public', 'locations', 'bihar_blocks.json');
+        const data = JSON.parse(require('fs').readFileSync(fp, 'utf8'));
+        console.log('📍 /locations/bihar_blocks.json requested');
+        return res.json(data);
+    } catch (err) {
+        console.error('❌ Error reading blocks file:', err.message);
+        return res.status(500).json({ error: 'Failed to load blocks' });
+    }
+});
+
 router.get('/api/locations/districts', (req, res) => {
     const division = req.query.division;
     try {
