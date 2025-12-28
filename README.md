@@ -34,8 +34,7 @@ The NHRA Initiative is a full-stack web application that digitizes and modernize
 - **Security Implementation**: Helmet, CORS, rate limiting, input validation
 - **Logging System**: Winston with daily rotation and structured JSON logs
 - **Metrics & Monitoring**: Prometheus integration with request tracking
-- **Containerization**: Multi-stage Docker build with Chromium
-- **Process Management**: PM2 configuration for production clustering
+- **Serverless Deployment**: Vercel-compatible with Puppeteer support
 - **CI/CD Pipeline**: GitHub Actions with automated testing and deployment
 - **Testing Framework**: Jest + Supertest with basic test coverage
 - **Local Development**: Docker Compose setup with MongoDB
@@ -66,8 +65,7 @@ The NHRA Initiative is a full-stack web application that digitizes and modernize
 - **Health Monitoring**: Application health checks and uptime tracking
 - **Prometheus Metrics**: Request duration, error rates, and performance monitoring
 - **Structured Logging**: JSON-formatted logs with daily rotation
-- **Docker Containerization**: Production-ready container with Chromium
-- **PM2 Process Management**: Cluster mode with memory management
+- **Serverless Deployment**: Vercel-compatible with Puppeteer for PDF generation
 - **Automated Testing**: Unit and integration tests with coverage reporting
 - **CI/CD Pipeline**: GitHub Actions with automated deployment
 
@@ -98,12 +96,10 @@ The NHRA Initiative is a full-stack web application that digitizes and modernize
 - **File Uploads**: Multer middleware for secure file handling
 
 ### **DevOps & Infrastructure**
-- **Containerization**: Docker with multi-stage builds
-- **Orchestration**: Docker Compose for local development
-- **Process Manager**: PM2 with ecosystem configuration
+- **Serverless**: Vercel for deployment
 - **CI/CD**: GitHub Actions with automated workflows
 - **Monitoring**: Prometheus metrics and Winston logging
-- **Deployment**: Render.com with auto-scaling
+- **Deployment**: Vercel with auto-scaling
 
 ### **Security & Quality**
 - **Security Headers**: Helmet.js for HTTP security
@@ -168,12 +164,9 @@ nhra-website/
 │   ├── news.ejs
 │   ├── team.ejs            # Team display page
 │   └── verify.ejs          # Membership verification
-├── 📄 .dockerignore        # Docker build exclusions
 ├── 📄 .env.example         # Environment variables template
 ├── 📄 .gitignore           # Git exclusions
-├── 🐳 docker-compose.yml   # Local development orchestration
-├── 🐳 Dockerfile           # Production container definition
-├── ⚙️ ecosystem.config.js  # PM2 process configuration
+├── ⚙️ vercel.json          # Vercel deployment configuration
 ├── 🧪 jest.config.js       # Testing configuration
 ├── 📦 package.json         # Dependencies and scripts
 ├── 🔧 prepare_puppeteer_env.sh  # Puppeteer setup script
@@ -185,34 +178,39 @@ nhra-website/
 
 ### **Prerequisites**
 - Node.js 20+ and npm 7+
-- Docker and Docker Compose (for containerized development)
-- MongoDB (local or cloud instance)
+- MongoDB (cloud instance like MongoDB Atlas)
 - Git
+- Vercel account for deployment
 
-### **Quick Start with Docker (Recommended)**
+### **Quick Start with Vercel (Recommended)**
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/human2394right-dotcom/NHRA.git
-   cd NHRA
-   ```
+    ```bash
+    git clone https://github.com/human2394right-dotcom/NHRA.git
+    cd NHRA
+    ```
 
 2. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your MongoDB URI and other settings
-   ```
+    ```bash
+    cp .env.example .env
+    # Edit .env with your MongoDB URI and other settings
+    ```
 
-3. **Launch with Docker Compose**
-   ```bash
-   docker-compose up --build
-   ```
+3. **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-4. **Access the application**
-   - **Website**: http://localhost:5000
-   - **Health Check**: http://localhost:5000/health
-   - **Metrics**: http://localhost:5000/metrics (if enabled)
-   - **MongoDB**: localhost:27017 (for direct access)
+4. **Deploy to Vercel**
+    ```bash
+    npx vercel --prod
+    ```
+    Follow the prompts to link your GitHub repo and set environment variables.
+
+5. **Access the application**
+    - Vercel will provide the deployment URL
+    - **Health Check**: /health
+    - **Metrics**: /metrics (if enabled)
 
 ### **Manual Installation (Development)**
 
@@ -245,15 +243,7 @@ npm run dev  # Nodemon with hot reload
 ```
 
 ### **Production Mode**
-```bash
-# Direct Node.js
-npm start
-
-# With PM2 (recommended)
-npm run pm2:start
-npm run pm2:logs    # View logs
-npm run pm2:monitor # Monitor processes
-```
+The app is configured for Vercel serverless deployment. Push to main branch to deploy automatically.
 
 ### **Testing**
 ```bash
@@ -267,19 +257,13 @@ npm run test:coverage
 npm run test:watch
 ```
 
-### **Docker Commands**
+### **Local Development**
 ```bash
-# Build and run locally
-docker-compose up --build
+# Start development server
+npm run dev
 
-# Run in detached mode
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop containers
-docker-compose down
+# Direct start
+npm start
 ```
 
 ## 🔑 Key Functionalities Explained
@@ -317,16 +301,15 @@ docker-compose down
 ## 🚧 Challenges Faced
 
 ### **Current Issues**
-- **Docker Build Compatibility**: Node.js version conflicts with npm commands
-- **Puppeteer Container Setup**: Chromium installation in Debian containers
+- **Serverless Puppeteer**: Ensuring PDF generation works in Vercel environment
 - **Environment Configuration**: Complex cascade permission system
 - **File Upload Security**: Balancing usability with security requirements
 
 ### **Resolved Challenges**
 - ✅ **Hierarchical Permissions**: Complex cascade authority implementation
-- ✅ **PDF Generation**: Puppeteer configuration for server environments
-- ✅ **Multi-stage Docker**: Optimized build process with security considerations
+- ✅ **PDF Generation**: Puppeteer configuration for serverless environments
 - ✅ **Session Management**: Secure authentication with role-based access
+- ✅ **Vercel Deployment**: Converted from Docker/PM2 to serverless
 
 ### **Known Limitations**
 - **Content Management**: Static content requires manual updates

@@ -12,12 +12,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop ecosystem.config.js",
-    "pm2:restart": "pm2 restart ecosystem.config.js",
-    "pm2:logs": "pm2 logs nhra-website",
-    "pm2:monitor": "pm2 monit",
-    "start:pm2": "pm2 start index.js --name human-right",
     "lint": "eslint . || true"
   },
   "keywords": [],

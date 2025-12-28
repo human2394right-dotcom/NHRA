@@ -1,6 +1,6 @@
-// Configure Puppeteer for Render deployment
+// Configure Puppeteer for serverless deployment
 process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
-process.env.PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
+process.env.PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
 
 require('dotenv').config();
 const express = require('express');
@@ -119,28 +119,19 @@ app.use('/admin', require('./routes/admin'));
 // Pages routes (join form, home etc.)
 app.use('/', require('./routes/pages'));
 
-const PORT = process.env.PORT || 5000;
-
 // Connect to MongoDB if MONGO_URI is provided
 if (process.env.MONGO_URI) {
     mongoose.connect(process.env.MONGO_URI).then(() => {
         logger.info('Connected to MongoDB Atlas');
-        app.listen(PORT, () => {
-            logger.info(`Server running on port ${PORT}`);
-        });
     }).catch(err => {
         logger.error('MongoDB connection error: %o', err);
-        logger.warn(`Starting server without DB on port ${PORT}`);
-        app.listen(PORT, () => {
-            logger.info(`Server running on port ${PORT}`);
-        });
+        logger.warn('Starting without DB');
     });
 } else {
     logger.warn('No MONGO_URI provided - starting without database');
-    app.listen(PORT, () => {
-        logger.info(`Server running on port ${PORT}`);
-    });
 }
+
+module.exports = app;
 
 // Handle unexpected errors
 process.on('uncaughtException', (err) => {

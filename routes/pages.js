@@ -143,6 +143,10 @@ router.get('/join', (req, res) => {
     res.render('join', { oldData: {} });
 });
 
+router.get('/terms', (req, res) => {
+    res.render('terms');
+});
+
 // Admin routes are now handled in routes/admin.js
 
 
