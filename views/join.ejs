@@ -179,11 +179,11 @@
 
                     <script>
                         // Server-provided defaults for preselection (if any)
-                        window.__NHRA_LOCATION = {
-                            parmandal: <%- JSON.stringify(oldData && oldData.division ? oldData.division : '') %>,
-                            jila: <%- JSON.stringify(oldData && oldData.district ? oldData.district : '') %>,
-                            block: <%- JSON.stringify(oldData && oldData.block ? oldData.block : '') %>
-                        };
+                        window.__NHRA_LOCATION = <%- JSON.stringify({
+                            parmandal: oldData && oldData.division ? oldData.division : '',
+                            jila: oldData && oldData.district ? oldData.district : '',
+                            block: oldData && oldData.block ? oldData.block : ''
+                        }) %>;
                     </script>
 
                     <div id="locationStatus" style="font-size:0.95em;color:#666;margin-top:6px;"></div>
@@ -232,7 +232,10 @@
                     </div>
 
                     <div class="form-row full declaration">
-                        <label><input type="checkbox" name="agreedToTerms" id="agreedToTerms" <%= typeof agreedToTerms !== 'undefined' && agreedToTerms ? 'checked' : '' %> required> मैं संस्था के नियमों का पालन करूंगा/करूंगी *</label>
+                        <label>
+                            <input type="checkbox" name="agreedToTerms" id="agreedToTerms" <%= typeof agreedToTerms !== 'undefined' && agreedToTerms ? 'checked' : '' %> required>
+                            मैं संस्था के नियमों का पालन करूंगा/करूंगी * (<a href="/terms" class="terms-link" target="_blank" rel="noopener">Terms and Conditions पढ़ें</a>)
+                        </label>
                     </div>
 
                     <div class="form-actions">
@@ -264,7 +267,6 @@
         const photoPreviewImg = document.getElementById('photoPreviewImg');
 
         form.addEventListener('submit', function(e){
-            if (!agreed.checked) { e.preventDefault(); alert('कृपया घोषणा स्वीकार करें'); return; }
             submitBtn.disabled = true; submitBtn.textContent = 'सबमिट किया जा रहा है...';
         });
 
@@ -305,6 +307,7 @@
     })();
 </script>
 
+<script src="/js/form.js"></script>
 <script src="/js/bihar-locations.js"></script>
 
 <style>
@@ -324,6 +327,7 @@
     .photo-preview { background:#fff; padding:12px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.05); text-align:center; }
     .photo-preview img { width:200px; height:auto; border-radius:6px; }
     .help { margin-top:18px; font-size:0.95rem; color:#444; }
+    .terms-link { color:#1a73e8; text-decoration:underline; }
 
     @media (max-width: 900px) {
         .join-card { grid-template-columns: 1fr; }

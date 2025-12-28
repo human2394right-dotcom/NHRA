@@ -140,7 +140,7 @@ router.get('/gallery', (req, res) => {
 });
 
 router.get('/join', (req, res) => {
-    res.render('join');
+    res.render('join', { oldData: {} });
 });
 
 // Admin routes are now handled in routes/admin.js
@@ -508,7 +508,7 @@ async function handleJoin(req, res) {
             console.log('Email not sent: EMAIL_USER/PASS not configured');
         }
 
-        res.render('join', Object.assign({ success: 'आपका सदस्यता आवेदन जमा हो गया है! हम शीघ्र ही आपसे संपर्क करेंगे।', error: null }, {}));
+        res.render('join', { success: 'आपका सदस्यता आवेदन जमा हो गया है! हम शीघ्र ही आपसे संपर्क करेंगे।', error: null, oldData: {} });
     } catch (error) {
         console.error('Email send error:', error);
         res.render('join', Object.assign({ error: 'कुछ त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।', success: null }, data));
